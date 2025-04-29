@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Green Walkability Map</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        #map {
+            height: 70vh;
+            width: 100%;
+            border: 4px solid #10b981;
+            border-radius: 12px;
+        }
+        .tree-marker {
+            width: 32px;
+            height: 40px;
+            position: relative;
+            transform: translate(-50%, -100%);
+        }
+        .tree-marker::before {
+            content: '';
+            position: absolute;
+            bottom: 6px;
+            left: 50%;
+            transform: translateX(-50%);
+            border-left: 16px solid transparent;
+            border-right: 16px solid transparent;
+            border-bottom: 26px solid #10b981;
+        }
+        .tree-marker::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 6px;
+            height: 10px;
+            background: #8B4513;
+        }
+        .footprint-marker {
+            width: 32px;
+            height: 32px;
+            position: relative;
+            transform: translate(-50%, -100%);
+        }
+        .footprint-marker::before,
+        .footprint-marker::after {
+            content: '';
+            position: absolute;
+            width: 10px;
+            height: 16px;
+            background: #10b981;
+            border-radius: 5px;
+        }
+        .footprint-marker::before { left: 6px; transform: rotate(15deg); }
+        .footprint-marker::after { left: 16px; transform: rotate(-15deg); }
+        .custom-popup .leaflet-popup-content-wrapper {
+            background: #ffffff;
+            border: 3px solid #10b981;
+            border-radius: 8px;
+            padding: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-b from-emerald-100 to-white min-h-screen flex flex-col items-center">
+    <header class="w-full bg-emerald-600 text-white text-center py-6 shadow-lg">
+        <h1 class="text-3xl font-bold">Green Walkability Map</h1>
+        <p class="mt-2 text-lg">Discover eco-friendly walking routes in your city</p>
+    </header>
+    <main class="flex-1 w-full max-w-5xl px-4 py-6">
+        <div id="map" class="shadow-xl"></div>
+        <div class="flex justify-center gap-4 mt-6">
+            <button id="start-walk" class="bg-emerald-500 text-white px-6 py-3 rounded-lg hover:bg-emerald-600 transition duration-300 shadow-md">Start Walk</button>
+            <button id="complete-walk" class="bg-emerald-500 text-white px-6 py-3 rounded-lg hover:bg-emerald-600 transition duration-300 shadow-md">Complete Walk</button>
+            <button id="reset" class="bg-red-500 text-white px-6 py-3 rounded-lg hover:bg-red-600 transition duration-300 shadow-md">Reset</button>
+        </div>
+    </main>
+    <footer class="w-full bg-emerald-600 text-white text-center py-4">
+        <p>&copy; 2023 Green Walkability Map. All rights reserved.</p>
+    </footer>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // Initialize map
+        const map = L.map('map').setView([21.2379, 81.6483], 14);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        // Define icons
+        const treeIcon = L.divIcon({ className: 'tree-marker', iconSize: [32, 40], iconAnchor: [16, 40], popupAnchor: [0, -40] });
+        const footprintIcon = L.divIcon({ className: 'footprint-marker', iconSize: [32, 32], iconAnchor: [16, 32], popupAnchor: [0, -32] });
+
+        // Define points
+        const start = [21.2370, 81.6470];
+        const greenSpot = [21.2380, 81.6485];
+        const end = [21.2400, 81.6500];
+
+        // Distance function
+        function distance(p1, p2) {
+            const [lat1, lon1] = p1;
+            const [lat2, lon2] = p2;
+            const R = 6371; // km
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+            return R * c;
+        }
+
+        // Clear map function
+        function clearMap() {
+            map.eachLayer(function(layer) {
+                if (layer instanceof L.Marker || layer instanceof L.Polyline) {
+                    map.removeLayer(layer);
+                }
+            });
+        }
+
+        // Start walk
+        document.getElementById('start-walk').addEventListener('click', function() {
+            clearMap();
+            L.marker(start, { icon: footprintIcon }).addTo(map).bindPopup("Start");
+            L.marker(greenSpot, { icon: treeIcon }).addTo(map).bindPopup("Green Spot");
+            L.marker(end, { icon: footprintIcon }).addTo(map).bindPopup("End");
+            L.polyline([start, greenSpot], { color: '#10b981', weight: 6, dashArray: '10, 5' }).addTo(map);
+            L.polyline([greenSpot, end], { color: '#6b7280', weight: 6 }).addTo(map);
+        });
+
+        // Complete walk
+        document.getElementById('complete-walk').addEventListener('click', function() {
+            const totalDistance = distance(start, greenSpot) + distance(greenSpot, end);
+            const bonusPoints = Math.floor(totalDistance * 15);
+            const popupContent = `
+                <div class="text-center">
+                    <h3 class="text-lg font-bold text-emerald-600">Walk Completed!</h3>
+                    <p class="mt-2">Distance walked: ${totalDistance.toFixed(2)} km</p>
+                    <p class="mt-1">Bonus points: ${bonusPoints}</p>
+                </div>`;
+            L.popup({ className: 'custom-popup' })
+                .setLatLng(end)
+                .setContent(popupContent)
+                .openOn(map);
+        });
+
+        // Reset
+        document.getElementById('reset').addEventListener('click', function() {
+            clearMap();
+        });
+    </script>
+</body>
+</html>
